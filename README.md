@@ -241,8 +241,7 @@ This script performs the EPI processing workflow, including:
 Expected output:
 
 * Motion-corrected EPI MRE images
-* Wave-field-corrected displacement maps
-* Final MRE motion maps ready for inversion
+* Final wave-field corrected MRE motion maps ready for inversion
 
 ---
 
