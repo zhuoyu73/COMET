@@ -146,7 +146,6 @@ This script reconstructs the multiband spiral MRE data while incorporating the t
 Expected output:
 
 * Motion-corrected complex MRE images
-* Reconstructed MRE image series prepared for displacement processing
 
 ---
 
@@ -184,8 +183,7 @@ This script completes the wave field correction and prepares the final motion ma
 
 Expected output:
 
-* Wave-field-corrected motion maps
-* Masked displacement maps
+* Manual mask
 * Motion-corrected and vector-rotated MRE outputs ready for inversion
 
 ---
