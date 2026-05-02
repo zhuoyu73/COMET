@@ -1,0 +1,52 @@
+function vo = mtimes(a, vi)
+%	MRI "forward projection" y=A*x and backprojection x = (A')*y
+%   Brad Sutton, Univ. Michigan, June 2002
+
+if a.is.empty
+	error empty
+end
+
+v = a.v;
+R = a.R;
+ntp = a.ntp;
+list=a.ob.A_index_list;
+sizeA = size(a);
+if ~a.is.transpose 
+    vi = reshape(vi,[],R);
+    vi_tmp = vi*v;
+    vo = zeros(sizeA(1),1);  
+    start_index = 1;
+
+       A_1 = a.A; % assume all objects have the same size, may be changed later
+       A_1=A_1{1}; 
+       sizeA_1 = size(A_1);
+        lengthA_1 = sizeA_1(1);
+    for aa = 1:ntp
+	    kk=list(aa);
+        A_tmp = a.A{kk};
+       vo((aa-1)*(size(A_tmp,1))+1:aa*(size(A_tmp,1))) =  A_tmp*col(vi_tmp(:,aa)); 
+        %start_index = start_index+lengthA_tmp;
+    end
+    vo = vo(:);
+else        
+    vo_tmp = zeros(sizeA(2)/R, ntp);
+    start_index = 1;
+        A_1 = a.A;
+	A_1 = A_1{1};
+        sizeA_1 = size(A_1);
+        lengthA_1 = sizeA_1(1);
+    for aa = 1:ntp
+	kk=list(aa);
+        A_tmp = a.A{kk};
+        vi_tmp = vi((aa-1)*lengthA_1+1:aa*lengthA_1);  
+        %start_index = start_index+lengthA_tmp;
+        vo_tmp(:,aa) = A_tmp'*vi_tmp;        
+    end
+    vo = vo_tmp*v';
+    vo = vo(:);
+end
+
+
+
+
+

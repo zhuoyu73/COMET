@@ -1,0 +1,47 @@
+% Intialize Paths to use Recon Software
+%
+% Instructions: To add necessary paths to use this software to your
+% paths. Add the path containing this file to your path in your startup and
+% then call this script. As directories are added to the recon repository,
+% directories have to be added to this script.
+
+% Get the root path of the repository
+rootPath = fileparts(mfilename('fullpath'));
+
+% Replacing the inclusion of the entire IRT with our minimal fork of the
+% IRT
+addpath([ rootPath '/irt/graph']);
+addpath([ rootPath '/irt/mri']);
+addpath([ rootPath '/irt/nufft']);
+addpath([ rootPath '/irt/nufft/table']);
+addpath([ rootPath '/irt/penalty']);
+addpath([ rootPath '/irt/systems']);
+addpath([ rootPath '/irt/utilities']);
+addpath([ rootPath '/irt/mex/v7']);
+
+% Adding lab software.
+addpath([ rootPath '']);
+addpath([ rootPath '/Recon']);
+addpath([ rootPath '/Routines']);
+addpath([ rootPath '/Gridding']);
+addpath([ rootPath '/Siemens']);
+addpath([ rootPath '/SpiralGeneration']);
+addpath([ rootPath '/Objects']);
+addpath([ rootPath '/SpinVeyor']);
+addpath([ rootPath '/SpinVeyor/Ver1.0']);
+
+% Adding all of the test cases
+addpath(genpath([ rootPath '/Tests']));
+
+% Adding all of the utility functions
+addpath(genpath([ rootPath '/Utilities']));
+
+% Adding all of the external tools
+% Note that we don't use genpath here to control what is added. Exactly what
+% paths are added are controlled in initializeContribPaths.m in the /Contrib
+% directory.
+addpath([ rootPath '/Contrib']);
+initializeContribPaths;
+
+% Add useful defaults file from the repository.
+usefulDefaults;

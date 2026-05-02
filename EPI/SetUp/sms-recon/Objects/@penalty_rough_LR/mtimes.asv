@@ -1,0 +1,35 @@
+ function vo = mtimes(a, vi)
+%	MRI "forward projection" y=A*x and backprojection x = (A')*y
+%   Brad Sutton, Univ. Michigan, June 2002
+
+if a.is.empty
+	error empty
+end
+
+v = a.v;
+R = a.R;
+ntp = a.ntp;
+Cn = a.C;
+
+if ~a.is.transpose 
+    vi_tmp = reshape(vi,[],R);
+    uv = vi_tmp*v;
+    for kk = 1:ntp
+        vo_tmp(:,k) = Cn*uv(:,k);
+    end
+    vo = vo_tmp/v;
+else        
+    vi_tmp = reshape(vi,[],R);
+    uv = vi_tmp*v;
+    for kk = 1:ntp
+        vo_tmp(:,k) = Cn*uv(:,k);
+    end
+    vo = vo_tmp/v;
+
+    
+end
+
+
+
+
+

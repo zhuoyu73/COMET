@@ -1,0 +1,111 @@
+function ob = penalty_rough_LR(Cn, v, ntp)
+%function ob = fast_mr(kx,ky,fov,N,K,J,tt,we,flag_swt,L,int_opt,we_histo,epiflag)
+%	Construct MRI object, which can do Ax and A'y operations
+% typical input params:
+%   kx goes form -Nx/2 to Nx/2:  unitless version   [nro nshots]
+%   ky goes from -Ny/2 to Ny/2:  unitless version   [nro nshots]
+%   kz goes from -Nz/2 to Nz/2:  unitless version   [nro nshots]
+%    N = 64,128, MTX size
+%    K oversampling   = 2*N, 3*N, 1.5*N  
+%    J = number of neighbors, typ. 5,6,7,8,...
+%    L number of time segments.   L=5,6,7,...
+%    ntp is the number of images that will be used
+%    we_histo is a histogram of field map (we) for int_opt=2
+%            has two columns:
+%                    column 1:  bin centers for histogram
+%                    column 2:  histogram values at those bin centers
+%    int_opt = 1 for using input field map to find min-max int.
+%    int_opt = 2 for histogram and include we_histo for histogram of
+%    field map 
+% Note:  if we = zeros, then L=0 is used.
+%
+%  tt: timing vector for ONE shot (in a multi-shot) acquisition
+% 
+% 
+%  Brad Sutton   Jeff Fessler 
+%  University of Michigan
+%  June 17, 2002 
+%
+% Joe Holtrop
+% University of Illinois
+% October 1, 2013
+  
+
+
+%	default object
+ob.is.empty	= logical(1);
+ob.is.transpose = logical(0);
+
+if nargin == 0
+	ob = class(ob, 'penalty_rough_LR');
+	return
+end
+
+ob.v = v;
+ob.ntp = ntp;
+ob.sen = sen;
+ob.R = size(v,1); %Rank of model being used
+
+ob.Tvec = col(Tvec);
+ob.Tpoints = size(ob.Tvec,1);
+
+lmax_shots = 500;
+for idx = 1:lmax_shots
+     eval(sprintf('ob.G%d = 0;', idx));
+end
+
+for idx = 1:ob.Tpoints
+    if(length(kz) > 1)
+        warning('Performing 3D NUFFT...')
+        args = {[2*pi/N1*ky(:,idx),2*pi/N2*kx(:,idx), 2*pi/N3*kz(:,idx)],[N1,N2, N3],[Jm1,Jm2,Jm3],[K1,K2,K3],[Nx/2-1/2,Ny/2-1/2, Nz/2-1/2], 'table', 2^10, 'minmax:kb'}; 
+    %     args = {[2*pi/N1*ky,2*pi/N2*kx, 2*pi/N3*kz],[N1,N2, N3],[Jm1,Jm2,Jm3],[K1,K2,K3],[Nx/2-1/2,Ny/2-1/2, Nz/2-1/2], 'linear', 2^10}; 
+    else
+        args = {[2*pi/N1*ky(:,idx),2*pi/N2*kx(:,idx)],[N1,N2],[Jm1,Jm2],[K1,K2],[N1/2,N2/2]*(1), 'table', 2^10, 'minmax:kb'};
+        warning('Using table lookup...');
+    end
+    G = Gnufft_Anh(args);
+    eval(sprintf('ob.G%d = G;',idx)); 
+end
+
+clear kx ky kz;
+
+if (sum(abs(we(:))) == 0)
+    sprintf('Setting L=0') 
+    L=0;
+end
+% if (isvar('we_histo'))&(int_opt==2)
+%     if (sum(abs(we_histo(:,1))) == 0)
+%         sprintf('Setting L=0')
+%         L=0;
+%     end
+%     ob.int = int_tim_seghanning(tt,L);
+% elseif (isreal(we))
+%     ob.int = int_tim_seghanning(tt,L);
+% end
+if (isvar('we_histo'))&(int_opt==2)
+    if (sum(abs(we_histo(:,1))) == 0)
+        sprintf('Setting L=0')
+        L=0;
+    end
+    ob.int = int_tim_seg_new(tt,L,we(:),int_opt,we_histo);
+elseif (isreal(we))
+    ob.int = int_tim_seg_new(tt,L,we(:),int_opt);
+end
+
+ob.N = Nx*Ny*Nz;
+ob.we = we;
+ob.tt = tt;
+ob.is.empty	= logical(0);
+ob.v = v;
+ob.ntp = ntp;
+ob.sen = sen;
+ob.R = size(v,1); %Rank of model being used
+
+
+ob = class(ob, 'LRobj');
+
+
+
+
+
+

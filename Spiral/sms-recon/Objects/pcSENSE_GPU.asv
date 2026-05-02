@@ -1,0 +1,313 @@
+classdef pcSENSE_GPU
+    %pcSENSE Phase Corrected SENSE object for use correcting motion induced
+    %phase errors (Version 2.0)
+    %
+    % Syntax:  S = pcSENSE(A,phaseMaps, senMap, varargin)
+    %
+    % Inputs:
+    %    A       - TimeSegmentation (or compatible) object. For the nested
+    %              G object, k-space should be stored as a 2D array with
+    %              dimensionality [NreadoutPts, Nshots].
+    %       
+    %    phaseMaps - Real valued phase maps with range: [-2npi:pi] of size
+    %                [Nx,Ny,Nz,nShot]
+    %    senMaps   - Complex valued sensitivity maps with size
+    %                [Nx,Ny,Nz,nCoils]
+    %   
+    % Outputs:
+    %    S     - pcSENSE class object with overloaded mtimes operator for
+    %            computing the forward and adjoint transform operations through
+    %            A*x and A'*x.
+    %
+    % Example:
+    %    % Create a spin-warp kspace
+    %    [kx,ky] = ndgrid(-63:64,-63:64);
+    %    % Initialize the object for a 2D 128x128 matrix recon.
+    %    G =
+    %    NUFFT(kx(:),ky(:),zeros(size(kx(:))),128,128,1);
+    %    % Compute a data domain estimate
+    %    imageModel = phantom(128,128);
+    %    dataEstimate = G*imageModel(:);
+    %    imageEstimate = G'*dataEstimate; 
+    %    im(reshape(imageEstimate,128,128));
+    %
+    %
+    % Other m-files required: nufft implementation and private directories
+    % Subfunctions: none
+    % MAT-files required: none
+    %
+    % Author: Alex Cerjanic (Version 2.0)
+    %         Ahn Van (Version 1.0)
+    %         Joseph Holtrop (Version 1.0)
+    % University of Illinois at Urbana-Champaign
+    % email address:
+    % Website: www.mrfil.bioen.illinois.edu
+    % 8-Sep-2017; Last revision: 8-Sep-2017    
+    properties
+        isEmpty = true;
+        is2DPhaseMaps = false; % Are the phase maps 2D (for thin, multislab case)?
+        sen = []; % Sense map
+        phaseMaps = []; % Phase (real valued [-n*pi,n*pi]) maps for correction of motion induced phase error
+        % Phase maps must be same size as imaging data with
+        % exception of the 3d dimension (partition
+        % dimension). If partition dimension is 1, then
+        % Phase Maps will be repmat'ed up to the size of
+        % the imaging volume in that dimension only.
+        isTranspose = false; % Required to implement forward/adjoint transforms via mtimes
+        A = 1; % Transform object supporting mtimes overloads
+        nShots; % Number of shots to be corrected
+        A_Array; % Array of shotwise transform objects to be created.
+        Nimage; %Size of the image as a column vector
+        ShotLength; %Size of k-space for a single shot as a column vector.
+        nCoils; % Number of coils
+        % ---- PATCH START: GPU awareness ----
+        UseGPU = true;
+        Precision = 'single';
+        % ---- PATCH END ----
+    end
+    
+    methods
+        function obj = pcSENSE_GPU(A,phaseMaps,sen,varargin)
+            
+            % Check to make sure that the transform object has kspace
+            % in the correct format.
+   %         if (size(A.G.Kx,2) == 1)
+   %             error('The A object passed in must have kspace stored in a 2D array [npts x nshots].');
+   %         end
+            
+            obj.nShots = size(A.G.Kx,2);
+            obj.ShotLength = size(A.G.Kx,1);
+            obj.sen = sen;
+            obj.nCoils = size(obj.sen,2);
+            obj.phaseMaps = phaseMaps;
+            if size(phaseMaps,3) == 1
+                obj.is2DPhaseMaps = true;
+            end
+            obj.A = A;
+            if obj.A.G.isMasked
+                obj.Nimage = sum(obj.A.G.mask(:));
+            else
+                obj.Nimage = (obj.A.G.Nx*obj.A.G.Ny*obj.A.G.Nz);
+            end
+            
+            %obj.A.st = []; % Intentionally clear out the spatial interpolator
+            % Intialize the field corrected transform objects for shot-wise
+            % reconstruction
+            for ii = 1:obj.nShots
+                % Deal with support mask on the transform
+                if obj.A.G.isMasked
+                    Gtemp = NUFFT_GPU(obj.A.G.Kx(:,ii),obj.A.G.Ky(:,ii),obj.A.G.Kz(:,ii),obj.A.G.Nx,obj.A.G.Ny,obj.A.G.Nz,'mask',obj.A.G.mask,'UseGPU',obj.UseGPU,'Backend',obj.A.G.Backend,'Precision',obj.Precision);
+                else % No support mask used
+                    Gtemp = NUFFT_GPU(obj.A.G.Kx(:,ii),obj.A.G.Ky(:,ii),obj.A.G.Kz(:,ii),obj.A.G.Nx,obj.A.G.Ny,obj.A.G.Nz,'UseGPU',obj.UseGPU,'Backend',obj.A.G.Backend,'Precision',obj.Precision);
+                end
+                % Deal with Timing vector
+                if (length(obj.A.timingVec) ~= length(obj.A.G.Kx(:,1)))
+                    timingVec = obj.A.timingVec(length(obj.A.G.Kx(:,1)));
+                else
+                    timingVec = obj.A.timingVec;
+                end
+                obj.A_Array{ii} = TimeSegmentation(Gtemp,timingVec,obj.A.fieldMap,0);
+                
+                % Avoid the cost of recomputing the temporal interpolators,
+                % let's just use them as is from the prototype object.
+                obj.A_Array{ii}.timeInterp = obj.A.timeInterp;
+                obj.A_Array{ii}.nShots = 1; % By definition since we are correcting phase, shot-wise
+                obj.A_Array{ii}.L = obj.A.L;
+                obj.A_Array{ii}.Interpolator = obj.A.Interpolator;
+                
+            end
+            
+            % ---- PATCH START: parse optional GPU/precision flags ----
+            if ~isempty(varargin)
+            % accept ...,'UseGPU',true,'Precision','single'
+                for k=1:2:numel(varargin)
+                    key = lower(string(varargin{k}));
+                    val = varargin{k+1};
+                    if key=="usegpu", obj.UseGPU = logical(val); end
+                    if key=="precision", obj.Precision = char(val); end
+                end
+            end
+            % cast sensitivity maps once to target device/precision
+            obj.sen = cast(obj.sen, obj.Precision);
+            if obj.UseGPU, obj.sen = gpuArray(obj.sen); end
+            
+            %{
+            % also pass flags down into per-shot NUFFT if present
+            for ii=1:obj.nShots
+                Gii = obj.A_Array{ii}.G;
+                if isprop(Gii,'UseGPU'),    Gii.UseGPU = obj.UseGPU; end
+                if isprop(Gii,'Backend') && isprop(obj.A,'Backend')
+                    Gii.Backend = obj.A.Backend;
+                end
+                if isprop(Gii,'Precision'), Gii.Precision = obj.Precision; end
+            end
+            %}
+            % ---- PATCH END ----
+
+            obj.isEmpty = false;
+            
+        end
+        
+        function y = size(obj)
+            y = size(obj.A.G);
+            y(1) = obj.nCoils*y(1);
+        end
+        
+        function obj = ctranspose(obj)
+            obj.isTranspose = ~obj.isTranspose;
+        end
+        
+        function y = mtimes(obj,x)
+            
+            if ~obj.isTranspose % Forward operation
+                % -------- Forward --------
+                if obj.UseGPU
+                    if ~isa(x,'gpuArray')
+                        x = gpuArray(cast(x, obj.Precision)); 
+                    else
+                        x = cast(x, obj.Precision);
+                    end
+                    yMat = gpuArray.zeros(obj.ShotLength*obj.nCoils, obj.nShots, obj.Precision);
+                    j_like = complex(cast(0,obj.Precision), cast(1,obj.Precision));
+                else
+                    x = cast(x, obj.Precision);
+                    yMat = zeros(obj.ShotLength*obj.nCoils, obj.nShots, obj.Precision);
+                    j_like = 1j;
+                end
+                
+                %y = zeros(obj.ShotLength*obj.nCoils, obj.nShots);
+                for indx = 1:obj.nShots
+                    %Psense = obj.sen .* expP; 
+                    if obj.is2DPhaseMaps
+                        P_tmp = col(repmat(obj.phaseMaps(:,:,1,indx),[1, obj.A.G.Nz]));
+                    else
+                        P_tmp = col(obj.phaseMaps(:,:,:,indx));
+                    end
+                    
+                    if obj.A.G.isMasked, P_tmp = P_tmp(obj.A.G.mask); end
+                    P_tmp = cast(P_tmp, obj.Precision);
+                    if obj.UseGPU
+                        P_tmp = gpuArray(P_tmp);
+                    end
+                    
+                    
+                    % Build Psense in one shot: [Nimage, nCoils]
+                    S = sense(obj.A_Array{indx}, obj.sen .* exp(j_like * P_tmp));
+
+                    yMat(:, indx) = S * x;
+                end
+                y = yMat(:);
+                    %{
+                    if obj.A.G.isMasked
+                        P_tmp = P_tmp(obj.A.G.mask);
+                    end
+                    
+                    for cc = 1:obj.nCoils
+                        Psense(:,cc) = obj.sen(:,cc).*exp(1j*P_tmp);
+                    end
+                    
+                    S = sense(obj.A_Array{indx},squeeze(Psense));
+                    
+                    y(:, indx) = S*x;
+                    
+                end
+                
+                y = y(:);
+                    %} 
+            else % Adjoint operation
+                % -------- Adjoint --------
+                if obj.UseGPU
+                    if ~isa(x,'gpuArray')
+                        x = gpuArray(cast(x, obj.Precision)); 
+                    else 
+                        x = cast(x, obj.Precision); 
+                    end
+                    yShots = gpuArray.zeros(obj.Nimage, obj.nShots, obj.Precision);
+                    j_like = complex(cast(0,obj.Precision), cast(1,obj.Precision));
+                else
+                    x = cast(x, obj.Precision);
+                    yShots = zeros(obj.Nimage, obj.nShots, obj.Precision);
+                    j_like = 1j;
+                end
+                X = reshape(x, [obj.ShotLength*obj.nCoils, obj.nShots]);
+                dis
+
+                for indx = 1:obj.nShots
+                    if obj.is2DPhaseMaps
+                    P_tmp = col(repmat(obj.phaseMaps(:,:,1,indx), [1, obj.A.G.Nz]));
+                    else
+                    P_tmp = col(obj.phaseMaps(:,:,:,indx));
+                    end
+                    if obj.A.G.isMasked
+                        P_tmp = P_tmp(obj.A.G.mask); 
+                    end
+                    P_tmp = cast(P_tmp, obj.Precision);
+                    if obj.UseGPU
+                        P_tmp = gpuArray(P_tmp); 
+                    end
+                                    
+                    S = sense(obj.A_Array{indx}, obj.sen .* exp(j_like * P_tmp));
+                    yShots(:, indx) = S' * X(:, indx);
+                end
+                y = sum(yShots, 2);
+                %{
+                y = zeros(obj.Nimage, obj.nShots);
+ 
+                x = reshape(x, [obj.ShotLength*obj.nCoils, obj.nShots]);
+                for indx = 1:obj.nShots
+                    Psense = zeros(obj.Nimage, obj.nCoils);
+                    
+                    if obj.is2DPhaseMaps
+                        P_tmp = col(repmat(obj.phaseMaps(:,:,1,indx),[1, obj.A.G.Nz]));
+                    else
+                        P_tmp = col(obj.phaseMaps(:,:,:,indx));
+                    end
+                    
+                    if obj.A.G.isMasked
+                        P_tmp = P_tmp(obj.A.G.mask);
+                    end
+                    
+                    for cc = 1:obj.nCoils
+                        Psense(:,cc) = obj.sen(:,cc).*exp(1j*P_tmp);
+                    end
+                    
+                    S = sense(obj.A_Array{indx},squeeze(Psense));
+                    
+                    y(:,indx) = S'*x(:,indx);
+                end
+                y = sum(y,2);
+                %}
+            end
+        end
+        %{
+        function checkAdjointness(obj)
+        %CHECKADJOINTNESS  验证 SENSE 算子前向和伴随是否满足内积关系
+        % <Sx, y> ≈ <x, S'*y>
+        
+            x = randn(obj.Nimage,1,obj.Precision) + 1j*randn(obj.Nimage,1,obj.Precision);
+            y = randn(obj.ShotLength*obj.nCoils*obj.nShots,1,obj.Precision) ...
+              + 1j*randn(obj.ShotLength*obj.nCoils*obj.nShots,1,obj.Precision);
+            
+            if obj.UseGPU
+                x = gpuArray(x); 
+                y = gpuArray(y);
+            end
+            
+            Sx = obj * x;
+            Sy = obj' * y;
+            
+            lhs = sum(conj(Sx(:)) .* y(:));   % <Sx, y>
+            rhs = sum(conj(x(:))  .* Sy(:));  % <x, S'*y>
+            
+            err = abs(lhs - rhs) / abs(lhs);
+
+            fprintf('Adjointness check:\n');
+            fprintf('<Sx,y> = %g + %gi\n', real(lhs), imag(lhs));
+            fprintf('<x,S''y> = %g + %gi\n', real(rhs), imag(rhs));
+            fprintf('Relative error = %.2e\n', gather(err));
+        end
+        %}
+    end
+end
+
+

@@ -1,0 +1,148 @@
+
+% test 2 with soft thresholding and Rbeta = 1
+classdef WaveletRobj
+    properties
+        beta
+        wname
+        level
+        mask
+    end
+
+    methods
+        function obj = WaveletRobj(mask, varargin)
+            if ~islogical(mask)
+                mask = logical(mask);
+            end
+            p = inputParser;
+            addOptional(p, 'beta', 1);
+            addOptional(p, 'wname', 'coif2');
+            addOptional(p, 'level', 4);
+            parse(p, varargin{:});
+            obj.beta = p.Results.beta;
+            obj.wname = p.Results.wname;
+            obj.level = p.Results.level;
+            obj.mask = mask;
+        end
+
+        function out = penal(obj, x)
+            x_img = embed(x, obj.mask);
+            out = 0;
+            for z = 1:size(x_img, 3)
+                x_slice = x_img(:, :, z);
+                [C, ~] = wavedec2(x_slice, obj.level, obj.wname);
+                out = out + sum(abs(C));
+            end
+            out = obj.beta * out;
+        end
+
+        function out = cgrad(obj, x)
+            x_img = embed(x, obj.mask);
+            grad_img = zeros(size(x_img));
+            for z = 1:size(x_img, 3)
+                x_slice = x_img(:, :, z);
+                [C, S] = wavedec2(x_slice, obj.level, obj.wname);
+                C_thresh = soft_thresh(C, obj.beta);
+                x_rec = waverec2(C_thresh, S, obj.wname);
+                grad_img(:, :, z) = x_slice - x_rec;
+            end
+            out = col(grad_img(obj.mask));
+        end
+
+        function out = denom(obj, ddir, x)
+            dx_img = embed(ddir, obj.mask);
+            x_img = embed(x, obj.mask);
+            total = 0;
+            for z = 1:size(x_img, 3)
+                dx_slice = dx_img(:, :, z);
+                x_slice = x_img(:, :, z);
+                [C_dx, ~] = wavedec2(dx_slice, obj.level, obj.wname);
+                [C_x, ~] = wavedec2(x_slice, obj.level, obj.wname);
+                W = 1 ./ (abs(C_x) + eps);
+                total = total + sum((W.^2) .* abs(C_dx).^2);
+            end
+            out = obj.beta * total;
+        end
+    end
+end
+
+function out = soft_thresh(x, lambda)
+    out = max(abs(x) - lambda, 0) .* sign(x);
+end
+
+
+
+% test 1 with Rbeta = 1e-2
+%{
+classdef WaveletRobj
+    properties
+        beta
+        wname
+        level
+        mask
+    end
+
+    methods
+        function obj = WaveletRobj(mask, varargin)
+            if ~islogical(mask)
+                mask = logical(mask);
+            end
+            p = inputParser;
+            addOptional(p, 'beta', 1);
+            addOptional(p, 'wname', 'db2');
+            addOptional(p, 'level', 4);
+            parse(p, varargin{:});
+
+            obj.beta = p.Results.beta;
+            obj.wname = p.Results.wname;
+            obj.level = p.Results.level;
+            obj.mask = mask;
+        end
+        
+        function out = penal(obj, x)
+            x_img = embed(x, obj.mask);
+            out = 0;
+            for z = 1:size(x_img, 3)
+                x_slice = x_img(:, :, z);
+                [C, ~] = wavedec2(x_slice, obj.level, obj.wname);
+                out = out + sum(abs(C));
+            end
+            out = obj.beta * out;
+        end
+
+        function out = cgrad(obj, x)
+            x_img = embed(x, obj.mask);
+            grad_img = zeros(size(x_img));
+            for z = 1:size(x_img, 3)
+                x_slice = x_img(:, :, z);
+                [C, S] = wavedec2(x_slice, obj.level, obj.wname);
+                grad_C = soft_thresh_grad(C, obj.beta);
+                x_rec = waverec2(grad_C, S, obj.wname);
+                grad_img(:, :, z) = x_rec;
+            end
+            out = col(grad_img(obj.mask)); 
+        end
+
+        function out = denom(obj, ddir, x)
+            dx_img = embed(ddir, obj.mask);
+            x_img = embed(x, obj.mask);
+            total = 0;
+            for z = 1:size(x_img, 3)
+                dx_slice = dx_img(:, :, z);
+                x_slice = x_img(:, :, z);
+                [C_dx, ~] = wavedec2(dx_slice, obj.level, obj.wname);
+                [C_x, ~] = wavedec2(x_slice, obj.level, obj.wname);
+                W = 1 ./ (abs(C_x) + eps);
+                total = total + sum((W.^2) .* abs(C_dx).^2);
+            end
+            out = obj.beta * total;
+        end
+
+    end
+end
+
+function C_grad = soft_thresh_grad(C, beta)
+    % Subgradient of L1 norm: sign(C) where C ~= 0
+    thresh = beta;
+    C_grad = sign(C) .* (abs(C) > thresh);
+end
+%}

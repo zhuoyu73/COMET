@@ -1,0 +1,1 @@
+mex -v -compatibleArrayDims sdc3_MAT.c
