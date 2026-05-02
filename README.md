@@ -283,41 +283,16 @@ Motion-corrected and wave-field-corrected EPI MRE maps ready for inversion
 
 ---
 
-# Notes
-
-* The spiral workflow uses navigator images to estimate motion before motion-corrected reconstruction.
-* The EPI workflow is currently implemented as a section-by-section script.
-* The vector rotation step is important because subject motion changes the orientation of the measured displacement vectors relative to the anatomical frame.
-* Manual mask inspection is recommended before MRE inversion.
-* Output files should be checked visually before proceeding to stiffness inversion.
-
----
-
-# Suggested Quality Control
-
-After running the correction pipeline, visually inspect:
-
-* Navigator registration quality
-* Estimated transformation matrices
-* Motion-corrected magnitude images
-* Phase/displacement maps before and after correction
-* Brain mask quality
-* Final wave-field-corrected motion maps
-
-Recommended tools include MATLAB visualization, FSLeyes, or other NIfTI-compatible image viewers depending on the output file format.
-
----
-
 # Citation
 
 If you use this pipeline, please cite the associated COMET motion correction work.
 
 ```text
-Citation information to be added.
+Manuscript is Under Review.
 ```
 
 ---
 
 # Contact
 
-For questions, issues, or collaboration inquiries, please contact the repository maintainer.
+For questions, issues, or collaboration inquiries, please contact Zhuoyu Shi at zs2708@columbia.edu.
