@@ -1,6 +1,6 @@
-# COMET Motion and Wave Field Correction
+# COMET Motion Correction and Wave Field Reorientation
 
-This repository provides MATLAB pipelines for **COMET motion correction** and **wave field correction** for brain Magnetic Resonance Elastography (MRE) data. The workflow supports both **spiral multiband MRE** and **EPI MRE** acquisitions.
+This repository provides MATLAB pipelines for **COMET motion correction** and **wave field reorientation** for brain Magnetic Resonance Elastography (MRE) data. The workflow supports both **multishot, multiband, jointly-reconstructed MRE** and **single-shot MRE** acquisitions.
 
 The goal of the pipeline is to:
 
@@ -15,22 +15,22 @@ The goal of the pipeline is to:
 
 ```text
 COMET-motion-wavefield-correction/
-├── Spiral/
+├── Multi-Shot/
 │   ├── startup.m
 │   └── sms-recon/
 │       ├── initializePaths.m
 │       ├── Routines/
-│       │   ├── prepMultibandMRE.m
-│       │   ├── calc2Dregistrations_ZS.m
-│       │   └── reconMultibandMRE_ZS.m
+│       │   ├── prep_recon.m
+│       │   ├── motion_extraction.m
+│       │   └── recon_motion_correction.m
 │       └── Utilities/
 │           └── MRE/
-│               ├── proc_mbmre_1_ZS_RotateVectors.m
+│               ├── proc_mbmre_1_reorientation.m
 │               ├── manual_masking.m
-│               └── proc_mbmre_2_ZS_RotateVectors.m
+│               └── proc_mbmre_2_reorientation.m
 │
-└── EPI/
-    └── Siemens_EPIseq_Data_RotateVectors.m
+└── Single-Shot/
+    └── single_shot_motion_correction_reorientation.m
     └── SetUp/
         ├── startup.m
         └── sms-recon/
@@ -49,26 +49,26 @@ Typical requirements include:
 * MATLAB
 * Existing MRE reconstruction utilities in `sms-recon`
 * FSL, if registration or NIfTI-based processing steps require FSL commands
-* Access to raw spiral or EPI MRE data
+* Access to raw multishot or single-shot MRE data
 * MRE inversion software or downstream pipeline for stiffness reconstruction
 
 Before running the scripts, make sure all required paths are initialized using the provided `startup.m` and `initializePaths.m` files.
 
 ---
 
-# Spiral MRE Pipeline
+# Multi-Shot MRE Pipeline
 
-The spiral pipeline performs navigator-based motion estimation, motion-corrected multiband reconstruction, and wave field correction of the reconstructed displacement maps.
+The multishot pipeline performs navigator-based motion estimation, motion-corrected multiband reconstruction, and wave field reorientation.
 
-## Step 1. Initialize the Spiral Environment
+## Step 1. Initialize the Environment
 
-In MATLAB, navigate to the `Spiral` folder and run:
+In MATLAB, navigate to the `Multi-Shot` folder and run:
 
 ```matlab
 startup
 ```
 
-Then navigate to `Spiral/sms-recon` and run:
+Then navigate to `Multi-Shot/sms-recon` and run:
 
 ```matlab
 initializePaths
@@ -83,16 +83,16 @@ These scripts add the required reconstruction, utility, and processing folders t
 Run the following script under:
 
 ```text
-Spiral/sms-recon/Routines/
+Multi-Shot/sms-recon/Routines/
 ```
 
 Script:
 
 ```matlab
-prepMultibandMRE
+prep_recon
 ```
 
-This step reconstructs navigator images from the spiral multiband MRE acquisition. These navigator images are later used for motion estimation.
+This step reconstructs navigator images from the multiband MRE acquisition. These navigator images are later used for motion estimation.
 
 Expected output:
 
@@ -106,13 +106,13 @@ Expected output:
 Run:
 
 ```matlab
-calc2Dregistrations_ZS
+motion_extraction
 ```
 
 Location:
 
 ```text
-Spiral/sms-recon/Routines/
+Multi-Shot/sms-recon/Routines/
 ```
 
 This script performs 2D registration on the navigator images and estimates motion parameters for each relevant repetition, shot, phase offset, or motion state depending on the acquisition structure.
@@ -127,21 +127,21 @@ These transformation matrices are used by the motion-corrected reconstruction st
 
 ---
 
-## Step 4. Reconstruct Motion-Corrected Spiral MRE Images
+## Step 4. Reconstruct Motion-Corrected Multi-Shot MRE Images
 
 Run:
 
 ```matlab
-reconMultibandMRE_ZS
+recon_motion_correction
 ```
 
 Location:
 
 ```text
-Spiral/sms-recon/Routines/
+Multi-Shot/sms-recon/Routines/
 ```
 
-This script reconstructs the multiband spiral MRE data while incorporating the transformation matrices estimated in Step 3.
+This script reconstructs the multiband multishot MRE data while incorporating the transformation matrices estimated in Step 3.
 
 Expected output:
 
@@ -149,18 +149,18 @@ Expected output:
 
 ---
 
-## Step 5. Perform Wave Field Correction and Prepare Motion Maps for MRE Inversion
+## Step 5. Perform Wave Field Reorientation and Prepare Motion Maps for MRE Inversion
 
 Run the following scripts in order under:
 
 ```text
-Spiral/sms-recon/Utilities/MRE/
+Multi-Shot/sms-recon/Utilities/MRE/
 ```
 
 ### 5.1 Initial MRE Processing and Vector Rotation
 
 ```matlab
-proc_mbmre_1_ZS_RotateVectors
+proc_mbmre_1_reorientation
 ```
 
 This script performs the first stage of MRE processing and applies vector rotation to account for motion-related changes in displacement vector orientation.
@@ -176,7 +176,7 @@ This step is used to generate or refine the brain mask required for downstream M
 ### 5.3 Final MRE Processing
 
 ```matlab
-proc_mbmre_2_ZS_RotateVectors
+proc_mbmre_2_reorientation
 ```
 
 This script completes the wave field correction and prepares the final motion maps for MRE inversion.
@@ -188,16 +188,16 @@ Expected output:
 
 ---
 
-# EPI MRE Pipeline
+# Single-Shot MRE Pipeline
 
-The EPI pipeline performs motion correction and wave field correction section by section using a single main processing script.
+The single-shot pipeline performs motion correction and wave field correction section by section using a single main processing script.
 
-## Step 1. Initialize the EPI Environment
+## Step 1. Initialize the Environment
 
 In MATLAB, navigate to:
 
 ```text
-EPI/SetUp/
+Single-Shot/SetUp/
 ```
 
 Run:
@@ -209,7 +209,7 @@ startup
 Then navigate to:
 
 ```text
-EPI/SetUp/sms-recon/
+Single-Shot/SetUp/sms-recon/
 ```
 
 Run:
@@ -218,21 +218,21 @@ Run:
 initializePaths
 ```
 
-These scripts initialize the required paths for EPI MRE processing.
+These scripts initialize the required paths for Single-Shot MRE processing.
 
 ---
 
-## Step 2. Run the EPI Motion and Wave Field Correction Script
+## Step 2. Run the Single-Shot Motion and Wave Field Reorientation Script
 
 Run the following script section by section:
 
 ```matlab
-Siemens_EPIseq_Data_RotateVectors
+single_shot_motion_correction_reorientation
 ```
 
-This script performs the EPI processing workflow, including:
+This script performs the Single-Shot processing workflow, including:
 
-1. Loading EPI MRE data.
+1. Loading Single-Shot MRE data.
 2. Applying motion correction.
 3. Rotating displacement vectors according to the estimated motion.
 4. Generating wave-field-corrected motion maps.
@@ -240,45 +240,45 @@ This script performs the EPI processing workflow, including:
 
 Expected output:
 
-* Motion-corrected EPI MRE images
-* Final wave-field corrected MRE motion maps ready for inversion
+* Motion-corrected Single-Shot MRE images
+* Final wave-field reoriented MRE motion maps ready for inversion
 
 ---
 
 # Summary of Workflow
 
-## Spiral
+## Multi-Shot
 
 ```text
-Spiral/startup.m
+Multi-Shot/startup.m
         ↓
-Spiral/sms-recon/initializePaths.m
+Multi-Shot/sms-recon/initializePaths.m
         ↓
-prepMultibandMRE.m
+prep_recon.m
         ↓
-calc2Dregistrations_ZS.m
+motion_extraction.m
         ↓
-reconMultibandMRE_ZS.m
+recon_motion_correction.m
         ↓
-proc_mbmre_1_ZS_RotateVectors.m
+proc_mbmre_1_reorientation.m
         ↓
 manual_masking.m
         ↓
-proc_mbmre_2_ZS_RotateVectors.m
+proc_mbmre_2_reorientation.m
         ↓
-Motion-corrected and wave-field-corrected MRE maps ready for inversion
+Motion-corrected and wave-field-reoriented MRE maps ready for inversion
 ```
 
-## EPI
+## Single-Shot
 
 ```text
-EPI/SetUp/startup.m
+Single-Shot/SetUp/startup.m
         ↓
-EPI/SetUp/sms-recon/initializePaths.m
+Single-Shot/SetUp/sms-recon/initializePaths.m
         ↓
-Siemens_EPIseq_Data_RotateVectors.m
+single_shot_motion_correction_reorientation.m
         ↓
-Motion-corrected and wave-field-corrected EPI MRE maps ready for inversion
+Motion-corrected and wave-field-corrected Single-Shot MRE maps ready for inversion
 ```
 
 ---
