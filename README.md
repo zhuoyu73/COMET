@@ -7,14 +7,14 @@ The goal of the pipeline is to:
 1. Estimate motion from navigator or image-domain data.
 2. Incorporate the estimated motion into image reconstruction or post-processing.
 3. Rotate displacement vector fields into a consistent anatomical frame.
-4. Generate motion-corrected and wave-field-corrected MRE displacement maps ready for MRE inversion.
+4. Generate motion-corrected and wave-field-reoriented MRE displacement maps ready for MRE inversion.
 
 ---
 
 ## Repository Structure
 
 ```text
-COMET-motion-wavefield-correction/
+COMET/
 ├── Multi-Shot/
 │   ├── startup.m
 │   └── sms-recon/
@@ -179,7 +179,7 @@ This step is used to generate or refine the brain mask required for downstream M
 proc_mbmre_2_reorientation
 ```
 
-This script completes the wave field correction and prepares the final motion maps for MRE inversion.
+This script completes the wave field reorientation and prepares the final motion maps for MRE inversion.
 
 Expected output:
 
@@ -190,7 +190,7 @@ Expected output:
 
 # Single-Shot MRE Pipeline
 
-The single-shot pipeline performs motion correction and wave field correction section by section using a single main processing script.
+The single-shot pipeline performs motion correction and wave field reorientation section by section using a single main processing script.
 
 ## Step 1. Initialize the Environment
 
@@ -235,7 +235,7 @@ This script performs the Single-Shot processing workflow, including:
 1. Loading Single-Shot MRE data.
 2. Applying motion correction.
 3. Rotating displacement vectors according to the estimated motion.
-4. Generating wave-field-corrected motion maps.
+4. Generating wave-field-reoriented motion maps.
 5. Preparing outputs for MRE inversion.
 
 Expected output:
@@ -278,7 +278,7 @@ Single-Shot/SetUp/sms-recon/initializePaths.m
         ↓
 single_shot_motion_correction_reorientation.m
         ↓
-Motion-corrected and wave-field-corrected Single-Shot MRE maps ready for inversion
+Motion-corrected and wave-field-reoriented Single-Shot MRE maps ready for inversion
 ```
 
 ---
