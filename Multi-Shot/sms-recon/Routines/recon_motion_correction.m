@@ -1,4 +1,4 @@
-function reconMultibandMRE_ZS(datadir,filename,varargin)
+function recon_motion_correction(datadir,filename,varargin)
 % function reconMultibandMRE(datadir,filename,varargin)
 % 
 % Inputs (optional):

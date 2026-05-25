@@ -1,4 +1,4 @@
-function [tformList] = calc2Dregistrations_ZS(imgNav)
+function [tformList] = motion_extraction(imgNav)
 % Authors:
 % Alex Cerjanic & Zhuoyu Shi
 % June 2025

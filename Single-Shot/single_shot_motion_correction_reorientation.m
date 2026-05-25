@@ -1,4 +1,4 @@
-%% Siemens_EPIseq_Data_RotateVectors.m 
+%% single_shot_motion_correction_reorientation.m
 % Processing Part 1
 mag_nii = load_untouch_nii('mag.nii');
 phs_nii = load_untouch_nii('phs.nii');

@@ -1,4 +1,4 @@
-function prepMultibandMRE(datadir,filename)
+function prep_recon(datadir,filename)
 % function prepMultibandMRE(datadir,filename)
 %
 % Inputs (optional):
