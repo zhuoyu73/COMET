@@ -1,0 +1,167 @@
+%% single_shot_motion_correction_reorientation.m
+% LOAD IN YOUR MAGNITUDE AND PHASE DATA HERE
+mag = your_mag_data;
+phs = your_phs_data;
+
+[ny,nx,nz,~] = size(mag);
+dx = mag_nii.hdr.dime.pixdim(2); %ZS
+dy = mag_nii.hdr.dime.pixdim(3);
+dz = mag_nii.hdr.dime.pixdim(4);
+
+% CHANGE PARAMETERS HERE
+dirs = 3; %number of directions (y, x, z) 
+posneg = 2; %positive or negative polarity 
+offset = 4; %phase offsets 
+freq = 50;  %frequency
+tp = 24; % number of timepoints %ZS
+
+cplx_img = mag.*exp(1i*phs);
+
+imgraw = reshape(cplx_img,[ny nx nz posneg dirs offset]); 
+
+save imgraw_ep2d.mat imgraw
+
+t2stack = mean(mean(mean(abs(imgraw),6),5),4);  
+t2nii = make_nii(flipdim(flipdim(permute(t2stack,[2 1 3]),1),2),[dy dx dz]);  
+save_nii(t2nii,'t2stack.nii')
+
+
+mkdir('individual_nii')
+imgraw2 = reshape(imgraw,[size(imgraw,1) size(imgraw,2) size(imgraw,3) tp]); 
+for ii=1:size(imgraw2,4)
+    imgraw_rep1 = imgraw2(:,:,:,ii);
+    tmp = load_nii('t2stack.nii');
+    tmp.img= imgraw_rep1;
+    cd('individual_nii')
+    save_nii(tmp,sprintf('rep%d.nii',ii))
+    cd ..
+end
+%imgraw mag
+for ii=1:size(imgraw2,4)
+    imgraw_rep1 = imgraw2(:,:,:,ii);
+    tmp = load_nii('t2stack.nii');
+    tmp.img= abs(imgraw_rep1);
+    cd('individual_nii')
+    save_nii(tmp,sprintf('rep%d_mag.nii',ii))
+    cd ..
+end
+%imgraw real 
+for ii=1:size(imgraw2,4)
+    imgraw_rep1 = imgraw2(:,:,:,ii);
+    tmp = load_nii('t2stack.nii');
+    tmp.img= real(imgraw_rep1);
+    cd('individual_nii')
+    save_nii(tmp,sprintf('rep%d_real.nii',ii))
+    cd ..
+end
+%imgraw imag
+for ii=1:size(imgraw2,4)
+    imgraw_rep1 = imgraw2(:,:,:,ii);
+    tmp = load_nii('t2stack.nii');
+    tmp.img= imag(imgraw_rep1);
+    cd('individual_nii')
+    save_nii(tmp,sprintf('rep%d_imag.nii',ii))
+    cd ..
+end
+
+    cd('individual_nii')
+
+    
+for ii=1:tp
+eval(sprintf('!$FSLDIR/bin/flirt -in rep%d_mag.nii -ref rep1_mag.nii -out rep%d_reg_mag -omat rep%d_reg_mag.mat -dof 6',ii,ii,ii))
+end
+!gunzip -f *.nii.gz
+
+for ii=1:tp
+eval(sprintf('!$FSLDIR/bin/flirt -in rep%d_real.nii -ref rep1_reg_mag.nii -out rep%d_reg_real.nii -init rep%d_reg_mag.mat -applyxfm',ii,ii,ii))
+eval(sprintf('!$FSLDIR/bin/flirt -in rep%d_imag.nii -ref rep1_reg_mag.nii -out rep%d_reg_imag.nii -init rep%d_reg_mag.mat -applyxfm',ii,ii,ii))
+end
+!gunzip -f *.nii.gz
+
+
+for ii=1:tp
+    tmp_real = load_nii(sprintf('rep%d_reg_real.nii',ii));
+    tmp_imag = load_nii(sprintf('rep%d_reg_imag.nii',ii));
+    imgraw_new(:,:,:,ii) = (tmp_real.img+(1i*tmp_imag.img));
+end
+
+imgraw = reshape(imgraw_new,[size(imgraw,1) size(imgraw,2) size(imgraw,3) 2 3 4]); 
+cd ..
+save imgraw_ep2d_MoCo.mat imgraw
+
+%% Wave Filed Correction
+load('imgraw_ep2d_MoCo.mat')
+
+cd ('individual_nii/')
+motions = zeros([4 4 24]);
+for ii=1:24
+motions(:,:,ii) = load(sprintf('rep%d_reg_mag.mat',ii),'-ascii');
+end
+
+affines = reshape(motions,[4 4 2 3 4]);
+affines2 = permute(affines,[1 2 5 3 4]);
+
+cd ..
+
+phaseOffsets = [0 pi/2 pi 3*pi/2];
+E_nom = eye(3); 
+
+imgraw_tmp = permute(imgraw,[1 2 3 6 4 5]);
+clear imgraw2
+imgraw2(:,:,:,:,:,1)=imgraw_tmp(:,:,:,:,:,3);
+imgraw2(:,:,:,:,:,2)=imgraw_tmp(:,:,:,:,:,1);
+imgraw2(:,:,:,:,:,3)=imgraw_tmp(:,:,:,:,:,2);
+
+[Nx,Ny,Nz,Nphase,Npol,Ndir] = size(imgraw2);
+U_phase = zeros(Nx,Ny,Nz,3,Nphase);
+
+
+for iph = 1:Nphase
+    m_all = zeros(Nx,Ny,Nz,Ndir);
+    E_all = zeros(Ndir,3);
+
+    for idir = 1:Ndir
+        e_nom = E_nom(idir,:).';
+        E_pol = zeros(Npol,3);
+
+        for ipol = 1:Npol
+            M = affines2(:,:,iph,ipol,idir); 
+            A = M(1:3,1:3);
+
+                    [U_svd,~,V_svd] = svd(A);
+                    R = U_svd * V_svd';
+        
+                    if det(R) < 0
+                        U_svd(:,end) = -U_svd(:,end);
+                        R = U_svd * V_svd';
+                    end
+
+            e_eff = R' * e_nom;
+            E_pol(ipol,:) = e_eff.';
+        end
+        if ipol ~= 1
+            phi_diff = squeeze((imgraw2(:,:,:,iph,1,idir))./(imgraw2(:,:,:,iph,2,idir))); 
+        else 
+            phi_diff = squeeze((imgraw2(:,:,:,iph,ipol,idir)));
+        end
+        E_eff_dir = mean(E_pol,1); 
+
+        m_all(:,:,:,idir) = phi_diff;
+        E_all(idir,:) = E_eff_dir;
+    end
+    
+    disp(E_all)
+    disp(det(E_all))
+    disp(cond(E_all))
+
+    Einv = pinv(E_all);  
+
+    mx = m_all(:,:,:,1);
+    my = m_all(:,:,:,2);
+    mz = m_all(:,:,:,3);
+
+    U_phase(:,:,:,1,iph) = Einv(1,1)*mx + Einv(1,2)*my + Einv(1,3)*mz;
+    U_phase(:,:,:,2,iph) = Einv(2,1)*mx + Einv(2,2)*my + Einv(2,3)*mz;
+    U_phase(:,:,:,3,iph) = Einv(3,1)*mx + Einv(3,2)*my + Einv(3,3)*mz;
+    save mreimagesUphase.mat U_phase
+end

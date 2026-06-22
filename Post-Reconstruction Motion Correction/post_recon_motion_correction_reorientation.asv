@@ -1,28 +1,20 @@
 %% single_shot_motion_correction_reorientation.m
-% Processing Part 1
-mag_nii = load_untouch_nii('mag.nii');
-phs_nii = load_untouch_nii('phs.nii');
-magimg = mag_nii.img;
-phsimg = phs_nii.img;
-
-mag = permute((flip(magimg,2)),[2 1 3 4]);
-phs = permute((flip(phsimg,2)),[2 1 3 4]);
-
-dirlist_mag = dir('mag/*.nii*');
-dirlist_phs = dir('phs/*.nii*');
+% LOAD IN YOUR MAGNITUDE AND PHASE DATA HERE
+mag = your_mag_data;
+phs = your_phs_data;
 
 [ny,nx,nz,~] = size(mag);
-dx = mag_nii.hdr.dime.pixdim(2); 
+dx = mag_nii.hdr.dime.pixdim(2); %ZS
 dy = mag_nii.hdr.dime.pixdim(3);
 dz = mag_nii.hdr.dime.pixdim(4);
 
+% CHANGE PARAMETERS HERE
 dirs = 3; %number of directions (y, x, z) 
 posneg = 2; %positive or negative polarity 
 offset = 4; %phase offsets 
-freq = 50;  
+freq = 50;  %frequency
+tp = 24; % number of timepoints %ZS
 
-mag = double(mag);
-phs = pi*((double(phs)-2048)/2048); 
 cplx_img = mag.*exp(1i*phs);
 
 imgraw = reshape(cplx_img,[ny nx nz posneg dirs offset]); 
@@ -30,58 +22,10 @@ imgraw = reshape(cplx_img,[ny nx nz posneg dirs offset]);
 save imgraw_ep2d.mat imgraw
 
 t2stack = mean(mean(mean(abs(imgraw),6),5),4);  
-
-
 t2nii = make_nii(flipdim(flipdim(permute(t2stack,[2 1 3]),1),2),[dy dx dz]);  
 save_nii(t2nii,'t2stack.nii')
 
 
-!$FSLDIR/bin/bet2 t2stack.nii t2bet.nii -m -v -f 0.25 -w 1.3
-!gunzip -f t2bet.nii_mask.nii.gz
-!gunzip -f t2bet.nii.gz
-!cp t2bet.nii_mask.nii t2mask.nii
-!rm t2bet.nii_mask.nii
-
-tmp = load_nii('t2mask.nii');
-seD1 = strel('diamond',2); 
-mask = imerode(double(permute(flipdim(flipdim(tmp.img,1),2),[2 1 3 4])),seD1);
-save t2mask_bet.mat mask
-save t2stack.mat t2stack
-
-%% Manual Masking
-
-load('t2mask_bet.mat')
-load('t2stack.mat')
-tmp = (t2stack.*mask)./(1000);
-
-maskx = zeros(size(mask));
-
-% look at the whole brain
-figure;im(tmp);caxis([0 1])
-
-% look at the mask you have created (the negative mask)
-figure;im(tmp.*mask.*abs(1-maskx));caxis([0 1])
-
-
-for ss = 48:-1:1
-    ss
-    maskx(:,:,ss) = double(roipoly(tmp(:,:,ss)));
-end
-save maskx.mat maskx 
-
-%% Process Part 2 
-clear image
-
-load maskx.mat
-
-mask = mask.*abs(1-maskx);
-
-save t2mask_final.mat mask
-
-%% Motion Correction
-load('imgraw_ep2d.mat') 
-SubjectName = 'imgraw_ep2d'; 
-tp = 24;
 mkdir('individual_nii')
 imgraw2 = reshape(imgraw,[size(imgraw,1) size(imgraw,2) size(imgraw,3) tp]); 
 for ii=1:size(imgraw2,4)
@@ -147,8 +91,7 @@ save imgraw_ep2d_MoCo.mat imgraw
 
 %% Wave Filed Correction
 load('imgraw_ep2d_MoCo.mat')
-load t2mask_final.mat
-load t2stack.mat
+
 cd ('individual_nii/')
 motions = zeros([4 4 24]);
 for ii=1:24
@@ -196,7 +139,8 @@ for iph = 1:Nphase
             e_eff = R' * e_nom;
             E_pol(ipol,:) = e_eff.';
         end
-
+        if ipol != 1
+            
         phi_diff = squeeze((imgraw2(:,:,:,iph,1,idir))./(imgraw2(:,:,:,iph,2,idir))); 
         E_eff_dir = mean(E_pol,1); 
 
@@ -218,55 +162,4 @@ for iph = 1:Nphase
     U_phase(:,:,:,2,iph) = Einv(2,1)*mx + Einv(2,2)*my + Einv(2,3)*mz;
     U_phase(:,:,:,3,iph) = Einv(3,1)*mx + Einv(3,2)*my + Einv(3,3)*mz;
     save mreimagesUphase.mat U_phase
-
-[nx,ny,nz,ni] = size(squeeze(U_phase(:,:,:,:,iph)));
-nk=ni;
-nj=4;
-U_phase2 = U_phase(:,:,:,:,iph);
-U_phase2(isnan(U_phase2))=0;
-imrs = reshape(U_phase2,[nx ny nz nk]);
-save t2mask.mat mask
-
-mask_rep = repmat(mask,[1 1 1 nk]);
-mask_nii = make_nii(mask_rep);
-save_nii(mask_nii,'mre_mask.nii')
-
-phs_nii = make_nii(mask_rep.*angle(imrs));
-save_nii(phs_nii,sprintf('mre_phs%d.nii',iph))
-
-mag_rep = repmat(t2stack,[1 1 1 nk]);
-mag_nii = make_nii(mag_rep);
-save_nii(mag_nii,sprintf('mre_mag%d.nii',iph))
-
-tic
-eval(sprintf('!$FSLDIR/bin/prelude -a mre_mag%d.nii -p mre_phs%d.nii -o mre_output%d.nii -m mre_mask.nii -v',iph,iph,iph))
-!gunzip -f *.nii.gz
-toc
-
-tmp = load_nii(sprintf('mre_output%d.nii',iph));
-pimg(:,:,:,:,iph) = double(tmp.img);
 end
-
-save mreimages_unwrap.mat pimg
-
-OSS_SNR = oss_snr_filter(pimg,[dx dy dz],freq,mask);
-
-disp_img = flip(pimg,5)*1.764;
-fft_img = fft(disp_img,[],5)/(nj/2);
-wave_img = fft_img(:,:,:,:,2);
-
-Zmotion = wave_img(:,:,:,1);
-Ymotion = wave_img(:,:,:,2);
-Xmotion = wave_img(:,:,:,3);
-
-mreParams.subj = 'mre_for_inversion';
-mreParams.FOVx = nx*dx;
-mreParams.FOVy = ny*dy;
-mreParams.FOVz = nz*dz;
-mreParams.nx = nx;
-mreParams.ny = ny;
-mreParams.nz = nz;
-mreParams.freq = freq;
-mreParams.oss_snr = OSS_SNR;
-
-save(sprintf('%s.mat',mreParams.subj),'mreParams','mask','Zmotion','Ymotion','Xmotion','t2stack','OSS_SNR')
