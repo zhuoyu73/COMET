@@ -15,7 +15,7 @@ The goal of the pipeline is to:
 
 ```text
 COMET/
-├── Multi-Shot/
+├── Iterative Motion Correction/
 │   ├── startup.m
 │   └── sms-recon/
 │       ├── initializePaths.m
@@ -29,8 +29,8 @@ COMET/
 │               ├── manual_masking.m
 │               └── proc_mbmre_2_reorientation.m
 │
-└── Single-Shot/
-    └── single_shot_motion_correction_reorientation.m
+└── Post-Reconstruction Correction/
+    └── post_recon_motion_correction_reorientation.m
     └── SetUp/
         ├── startup.m
         └── sms-recon/
@@ -56,19 +56,19 @@ Before running the scripts, make sure all required paths are initialized using t
 
 ---
 
-# Multi-Shot MRE Pipeline
+# Iterative Reconstruction Correction Pipeline
 
-The multishot pipeline performs navigator-based motion estimation, motion-corrected multiband reconstruction, and wave field reorientation.
+The Iterative Reconstruction Correction pipeline performs navigator-based motion estimation, motion-corrected multiband reconstruction, and wave field reorientation.
 
 ## Step 1. Initialize the Environment
 
-In MATLAB, navigate to the `Multi-Shot` folder and run:
+In MATLAB, navigate to the `Iterative Reconstruction Correction` folder and run:
 
 ```matlab
 startup
 ```
 
-Then navigate to `Multi-Shot/sms-recon` and run:
+Then navigate to `Iterative Reconstruction Correction/sms-recon` and run:
 
 ```matlab
 initializePaths
@@ -83,7 +83,7 @@ These scripts add the required reconstruction, utility, and processing folders t
 Run the following script under:
 
 ```text
-Multi-Shot/sms-recon/Routines/
+Iterative Reconstruction Correction/sms-recon/Routines/
 ```
 
 Script:
@@ -112,7 +112,7 @@ motion_extraction
 Location:
 
 ```text
-Multi-Shot/sms-recon/Routines/
+Iterative Reconstruction Correction/sms-recon/Routines/
 ```
 
 This script performs 2D registration on the navigator images and estimates motion parameters for each relevant repetition, shot, phase offset, or motion state depending on the acquisition structure.
@@ -138,7 +138,7 @@ recon_motion_correction
 Location:
 
 ```text
-Multi-Shot/sms-recon/Routines/
+Iterative Reconstruction Correction/sms-recon/Routines/
 ```
 
 This script reconstructs the multiband multishot MRE data while incorporating the transformation matrices estimated in Step 3.
@@ -154,7 +154,7 @@ Expected output:
 Run the following scripts in order under:
 
 ```text
-Multi-Shot/sms-recon/Utilities/MRE/
+Iterative Reconstruction Correction/sms-recon/Utilities/MRE/
 ```
 
 ### 5.1 Initial MRE Processing and Vector Rotation
@@ -188,16 +188,16 @@ Expected output:
 
 ---
 
-# Single-Shot MRE Pipeline
+# Post-Recon Correction Pipeline
 
-The single-shot pipeline performs motion correction and wave field reorientation section by section using a single main processing script.
+The post-recon pipeline performs motion correction and wave field reorientation section by section using a single main processing script.
 
 ## Step 1. Initialize the Environment
 
 In MATLAB, navigate to:
 
 ```text
-Single-Shot/SetUp/
+Post-Reconstruction Correction/SetUp/
 ```
 
 Run:
@@ -209,7 +209,7 @@ startup
 Then navigate to:
 
 ```text
-Single-Shot/SetUp/sms-recon/
+Post-Reconstruction Correction/SetUp/sms-recon/
 ```
 
 Run:
@@ -218,11 +218,11 @@ Run:
 initializePaths
 ```
 
-These scripts initialize the required paths for Single-Shot MRE processing.
+These scripts initialize the required paths for Post-Reconstruction Correction.
 
 ---
 
-## Step 2. Run the Single-Shot Motion and Wave Field Reorientation Script
+## Step 2. Run the Post-Reconstruction Motion and Wave Field Reorientation Script
 
 Run the following script section by section:
 
@@ -230,9 +230,9 @@ Run the following script section by section:
 single_shot_motion_correction_reorientation
 ```
 
-This script performs the Single-Shot processing workflow, including:
+This script performs the Post-Reconstruction processing workflow, including:
 
-1. Loading Single-Shot MRE data.
+1. Loading magnitude and phase MRE data & changing the parameters.
 2. Applying motion correction.
 3. Rotating displacement vectors according to the estimated motion.
 4. Generating wave-field-reoriented motion maps.
@@ -240,19 +240,19 @@ This script performs the Single-Shot processing workflow, including:
 
 Expected output:
 
-* Motion-corrected Single-Shot MRE images
+* Motion-corrected MRE images
 * Final wave-field reoriented MRE motion maps ready for inversion
 
 ---
 
 # Summary of Workflow
 
-## Multi-Shot
+## Iterative Reconstruction Correction
 
 ```text
-Multi-Shot/startup.m
+Iterative Reconstruction Correction/startup.m
         ↓
-Multi-Shot/sms-recon/initializePaths.m
+Iterative Reconstruction Correction/sms-recon/initializePaths.m
         ↓
 prep_recon.m
         ↓
@@ -269,16 +269,16 @@ proc_mbmre_2_reorientation.m
 Motion-corrected and wave-field-reoriented MRE maps ready for inversion
 ```
 
-## Single-Shot
+## Post-Reconstruction Correction
 
 ```text
-Single-Shot/SetUp/startup.m
+Post-Reconstruction Correction/SetUp/startup.m
         ↓
-Single-Shot/SetUp/sms-recon/initializePaths.m
+Post-Reconstruction Correction/SetUp/sms-recon/initializePaths.m
         ↓
 single_shot_motion_correction_reorientation.m
         ↓
-Motion-corrected and wave-field-reoriented Single-Shot MRE maps ready for inversion
+Motion-corrected and wave-field-reoriented MRE maps ready for inversion
 ```
 
 ---
