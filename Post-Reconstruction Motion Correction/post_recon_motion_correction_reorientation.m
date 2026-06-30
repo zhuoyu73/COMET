@@ -1,20 +1,21 @@
 %% single_shot_motion_correction_reorientation.m
-% LOAD IN YOUR MAGNITUDE AND PHASE DATA HERE
+%% LOAD IN YOUR MAGNITUDE AND PHASE DATA HERE
 mag = your_mag_data;
 phs = your_phs_data;
 
 [ny,nx,nz,~] = size(mag);
-dx = mag_nii.hdr.dime.pixdim(2); %ZS
+dx = mag_nii.hdr.dime.pixdim(2);
 dy = mag_nii.hdr.dime.pixdim(3);
 dz = mag_nii.hdr.dime.pixdim(4);
 
-% CHANGE PARAMETERS HERE
+%% CHANGE PARAMETERS HERE
 dirs = 3; %number of directions (y, x, z) 
 posneg = 2; %positive or negative polarity 
 offset = 4; %phase offsets 
 freq = 50;  %frequency
-tp = 24; % number of timepoints %ZS
+tp = dirs * posneg * offset; % number of timepoints 
 
+%% Motion Correction Pipeline
 cplx_img = mag.*exp(1i*phs);
 
 imgraw = reshape(cplx_img,[ny nx nz posneg dirs offset]); 
@@ -165,3 +166,9 @@ for iph = 1:Nphase
     U_phase(:,:,:,3,iph) = Einv(3,1)*mx + Einv(3,2)*my + Einv(3,3)*mz;
     save mreimagesUphase.mat U_phase
 end
+
+% The output U_phase is the final post-reconstruction motion-corrected and 
+% wave-field-reoriented complex MRE displacement data. 
+% Its size is:[Nx, Ny, Nz, 3, Nphase]
+% This output is saved as mreimagesUphase.mat and can be used 
+% as the input motion data for downstream MRE inversion.
