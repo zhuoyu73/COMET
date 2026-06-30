@@ -235,13 +235,12 @@ This script performs the Post-Reconstruction processing workflow, including:
 1. Loading magnitude and phase MRE data & changing the parameters.
 2. Applying motion correction.
 3. Rotating displacement vectors according to the estimated motion.
-4. Generating wave-field-reoriented motion maps.
-5. Preparing outputs for MRE inversion.
+4. Generating wave-field-reoriented motion maps as the output.
 
 Expected output:
 
 * Motion-corrected MRE images
-* Final wave-field reoriented MRE motion maps ready for inversion
+* Final wave-field reoriented MRE motion maps
 
 ---
 
